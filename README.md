@@ -198,17 +198,6 @@ After the experiment runs, the agent rewrites `program.md` to:
 
 The agent can **add and remove its own rules**, retire disproven hypotheses, and change strategic direction. Over 100+ cycles, `program.md` becomes a document the AI fully authored — the most compelling demo artifact.
 
-### Models supported
-The agent is configurable via `OPENROUTER_MODEL` environment variable (when using OpenRouter):
-
-| Model | Notes |
-|---|---|
-| `meta-llama/llama-3.3-70b-instruct` | Recommended default — fast, reliable JSON |
-| `deepseek/deepseek-chat-v3-0324:free` | Free tier, strong reasoning |
-| `google/gemma-3-27b-it:free` | Original model, free but rate-limited |
-| `anthropic/claude-3.5-haiku` | Best JSON reliability |
-| `anthropic/claude-sonnet-4-5` | Strongest program.md rewrites |
-
 ---
 
 ## Reward Function
