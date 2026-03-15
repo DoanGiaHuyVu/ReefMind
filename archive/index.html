@@ -1,0 +1,1092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReefMind — AI Coral Research Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --theme:#00d2b4;--theme-dim:rgba(0,210,180,.15);--theme-glow:rgba(0,210,180,.08);
+  --bg:#060d0f;--surface:#0d1f24;--surface2:#112830;
+  --border:rgba(0,210,180,.12);--border2:rgba(0,210,180,.22);
+  --text:#e0f2f0;--text-dim:#7ba8a3;--text-muted:#3d6b65;
+  --font:'Space Grotesk',sans-serif;--mono:'JetBrains Mono',monospace;--pixel:'Press Start 2P',monospace;
+  --overlay-color:0,210,180;
+  transition:--theme .8s,background .8s;
+}
+:root.theme-bad{--theme:#ff4444;--theme-dim:rgba(255,68,68,.15);--border:rgba(255,68,68,.14);--border2:rgba(255,68,68,.28);--bg:#0f0000;--surface:#1a0000;--surface2:#200505;--overlay-color:255,68,68;}
+:root.theme-normal{--theme:#4db8ff;--theme-dim:rgba(77,184,255,.15);--border:rgba(77,184,255,.14);--border2:rgba(77,184,255,.28);--bg:#000d18;--surface:#001525;--surface2:#001e33;--overlay-color:77,184,255;}
+:root.theme-good{--theme:#00ff88;--theme-dim:rgba(0,255,136,.15);--border:rgba(0,255,136,.14);--border2:rgba(0,255,136,.28);--bg:#000f08;--surface:#001a0e;--surface2:#002215;--overlay-color:0,255,136;}
+
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100vh;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);font-size:12px;}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;}
+.modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;width:600px;max-width:96vw;max-height:94vh;overflow-y:auto;position:relative;}
+.modal-theme-bar{position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0;background:var(--theme);transition:background .4s;}
+.modal-head{padding:24px 24px 16px;border-bottom:1px solid var(--border);}
+.pixel-title{font-family:var(--pixel);font-size:14px;color:var(--theme);letter-spacing:2px;display:block;margin-bottom:6px;}
+.modal-sub{font-size:11px;color:var(--text-dim);line-height:1.6;}
+.modal-health-preview{margin:0 24px 0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;display:flex;align-items:center;gap:16px;}
+.mhp-score{font-family:var(--pixel);font-size:22px;color:var(--theme);min-width:48px;}
+.mhp-label{font-size:10px;color:var(--text-dim);}
+.mhp-bar-wrap{flex:1;height:8px;background:rgba(255,255,255,.08);border-radius:4px;overflow:hidden;}
+.mhp-bar{height:100%;border-radius:4px;background:var(--theme);transition:width .3s,background .4s;}
+.sliders-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:16px 24px;}
+.slider-row{padding:8px 0;border-bottom:1px solid var(--border);}
+.slider-row:nth-child(odd){padding-right:16px;}
+.slider-row:nth-child(even){padding-left:16px;border-left:1px solid var(--border);}
+.slider-name{font-size:10px;font-weight:500;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;}
+.slider-val-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+.slider-current{font-family:var(--mono);font-size:11px;color:var(--theme);font-weight:500;}
+.slider-range{font-size:9px;color:var(--text-muted);}
+input[type=range]{width:100%;height:4px;-webkit-appearance:none;appearance:none;background:var(--surface2);border-radius:2px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--theme);cursor:pointer;border:2px solid var(--bg);}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:center;}
+.btn-start{background:var(--theme);color:#000;border:none;padding:10px 24px;border-radius:8px;font-family:var(--pixel);font-size:8px;cursor:pointer;letter-spacing:1px;transition:opacity .15s;}
+.btn-start:hover{opacity:.85;}
+.btn-default{background:transparent;color:var(--text-dim);border:1px solid var(--border2);padding:10px 16px;border-radius:8px;font-size:11px;cursor:pointer;}
+.btn-default:hover{background:var(--surface2);}
+.modal-note{font-size:10px;color:var(--text-muted);line-height:1.5;}
+
+/* ── APP LAYOUT ── */
+.app{height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.header{height:48px;display:flex;align-items:center;padding:0 16px;gap:12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+.logo{display:flex;align-items:center;gap:8px;font-family:var(--pixel);font-size:9px;color:var(--theme);}
+.logo-dot{width:8px;height:8px;border-radius:50%;background:var(--theme);box-shadow:0 0 6px var(--theme);animation:pdot 2s ease-in-out infinite;}
+@keyframes pdot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.hstats{display:flex;gap:20px;margin-left:20px;}
+.hstat .v{font-size:14px;font-weight:600;color:var(--theme);}
+.hstat .l{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;}
+.hright{margin-left:auto;display:flex;align-items:center;gap:6px;}
+.spill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1px solid var(--border2);font-size:10px;color:var(--text-dim);}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--text-muted);}
+.sdot.live{background:var(--theme);box-shadow:0 0 5px var(--theme);animation:pdot 1.5s infinite;}
+.sdot.run{background:#ffb347;box-shadow:0 0 5px #ffb347;animation:pdot .8s infinite;}
+.pbadge{display:none;font-size:10px;font-family:var(--mono);color:var(--theme);background:var(--theme-dim);border:1px solid var(--border2);padding:3px 8px;border-radius:5px;}
+.hbtn{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border);padding:5px 12px;border-radius:6px;font-size:10px;cursor:pointer;font-family:var(--font);}
+.hbtn:hover{background:var(--surface);border-color:var(--border2);}
+.hbtn.primary{background:var(--theme);color:#000;border-color:var(--theme);font-weight:600;}
+.hbtn.primary:hover{opacity:.85;}
+.hbtn.stop{background:#ff4444;color:#fff;border-color:#ff4444;display:none;}
+.hbtn.reset{color:var(--text-muted);font-size:9px;}
+#cycle-in{width:72px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-family:var(--mono);font-size:10px;padding:5px 8px;outline:none;}
+
+.main{flex:1;display:grid;grid-template-columns:380px 1fr;gap:8px;padding:8px;overflow:hidden;min-height:0;}
+.left-col{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden;}
+.right-col{display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden;}
+
+/* ── PANELS ── */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;}
+.ph{padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.ph-title{font-size:9px;font-weight:500;color:var(--text-dim);text-transform:uppercase;letter-spacing:.07em;}
+.ph-badge{font-size:9px;font-family:var(--mono);color:var(--theme);background:var(--theme-dim);padding:2px 7px;border-radius:4px;}
+
+/* ── REEF CANVAS ── */
+.reef-panel{flex:0 0 240px;}
+.reef-wrap{position:relative;flex:1;background:#040f14;overflow:hidden;}
+canvas#reef{width:100%;height:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;}
+.reef-hud{position:absolute;top:6px;right:6px;display:flex;flex-direction:column;gap:4px;}
+.hud-item{background:rgba(4,15,20,.85);border:1px solid var(--border2);border-radius:4px;padding:3px 7px;font-family:var(--mono);font-size:9px;color:var(--text-dim);display:flex;align-items:center;gap:5px;}
+.hud-dot{width:5px;height:5px;border-radius:50%;}
+
+/* ── ENV DISPLAY (below reef) ── */
+.env-panel{flex:1;min-height:0;}
+.env-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:8px;overflow-y:auto;height:100%;}
+.env-card{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px;}
+.ec-name{font-size:8px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px;}
+.ec-val{font-size:14px;font-weight:600;color:var(--text);}
+.ec-bar{height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:4px;overflow:hidden;}
+.ec-fill{height:100%;border-radius:2px;background:var(--theme);transition:width .5s;}
+.ec-target{font-size:8px;color:var(--text-muted);margin-top:2px;}
+
+/* ── METRICS ROW ── */
+.metrics-row{flex:0 0 78px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;padding:0;}
+.mc{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;position:relative;overflow:hidden;}
+.mc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent,var(--theme));opacity:.7;}
+.mc-l{font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em;}
+.mc-v{font-size:18px;font-weight:600;margin:3px 0 2px;}
+.mc-d{font-size:9px;}
+.up{color:#00ff88;}.dn{color:#ff4444;}.wn{color:#ffb347;}
+
+/* ── CHARTS ROW ── */
+.charts-row{flex:0 0 160px;display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.chart-panel{display:flex;flex-direction:column;}
+.chart-wrap{flex:1;padding:8px;min-height:0;position:relative;}
+
+/* ── BOTTOM ROW ── */
+.bottom-row{flex:1;min-height:0;display:grid;grid-template-columns:3fr 2fr;gap:8px;}
+
+/* ── SCOREBOARD ── */
+.sb-table{width:100%;border-collapse:collapse;font-size:10px;}
+.sb-table th{font-size:8px;font-weight:500;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;padding:6px 8px;border-bottom:1px solid var(--border);text-align:left;}
+.sb-table td{padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.04);}
+.sb-table tr:hover td{background:var(--surface2);}
+.sb-row-kept td:first-child{border-left:2px solid var(--theme);}
+.sb-row-disc td:first-child{border-left:2px solid var(--text-muted);opacity:.65;}
+.sb-row-override td:first-child{border-left:2px solid #ffb347;}
+.int-pill{display:inline-block;padding:1px 6px;border-radius:3px;font-size:8px;font-weight:500;}
+.int-combined{background:rgba(0,210,180,.2);color:var(--theme);}
+.int-shading{background:rgba(77,184,255,.2);color:#4db8ff;}
+.int-alkalinity{background:rgba(192,132,252,.2);color:#c084fc;}
+.int-pollution{background:rgba(74,222,128,.2);color:#4ade80;}
+.int-assisted{background:rgba(251,191,36,.2);color:#fbbf24;}
+.int-override{background:rgba(255,179,71,.2);color:#ffb347;}
+.sb-scroll{overflow-y:auto;flex:1;min-height:0;}
+.rw-bar{height:4px;background:var(--surface2);border-radius:2px;margin-top:2px;overflow:hidden;}
+.rw-fill{height:100%;border-radius:2px;}
+
+/* ── PROGRAM.MD ── */
+.prog-content{padding:10px 12px;font-family:var(--mono);font-size:9px;line-height:1.8;color:var(--text-dim);overflow-y:auto;flex:1;min-height:0;white-space:pre-wrap;}
+.pmd-h1{color:var(--theme);font-size:9px;}
+.pmd-h2{color:#4db8ff;font-size:9px;margin-top:4px;}
+
+/* scrollbar */
+::-webkit-scrollbar{width:4px;height:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:4px;}
+</style>
+</head>
+<body>
+
+<!-- ══ SETUP MODAL ══ -->
+<div class="modal-overlay" id="setup-modal">
+<div class="modal-box" id="modal-box">
+  <div class="modal-theme-bar" id="modal-bar"></div>
+  <div class="modal-head">
+    <span class="pixel-title">REEFMIND</span>
+    <div class="modal-sub">Configure your reef starting environment. Drag the sliders to set initial conditions.<br>The theme color shows how healthy your starting reef is.</div>
+  </div>
+
+  <div class="modal-health-preview" style="margin:12px 24px 0;">
+    <div>
+      <div class="mhp-score" id="mhp-score">38</div>
+      <div class="mhp-label">/ 100 health</div>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">ENVIRONMENT HEALTH PREVIEW</div>
+      <div class="mhp-bar-wrap"><div class="mhp-bar" id="mhp-bar" style="width:38%"></div></div>
+      <div id="mhp-label" style="font-size:9px;color:var(--text-dim);margin-top:4px;">Normal starting conditions</div>
+    </div>
+  </div>
+
+  <div class="sliders-grid" id="sliders-grid">
+    <!-- Generated by JS -->
+  </div>
+
+  <div class="modal-footer">
+    <button class="btn-start" onclick="applySetupAndStart()">START EXPERIMENT ▶</button>
+    <button class="btn-default" onclick="loadDefaults()">Reset defaults</button>
+    <div class="modal-note">These values initialize the reef world model.<br>The AI agent will then run experiments to restore it.</div>
+  </div>
+</div>
+</div>
+
+<!-- ══ APP ══ -->
+<div class="app" id="app" style="display:none">
+
+<!-- Header -->
+<header class="header">
+  <div class="logo"><div class="logo-dot" id="ldot"></div>REEFMIND</div>
+  <div class="hstats">
+    <div class="hstat"><div class="v" id="h-cyc">—</div><div class="l">Cycles</div></div>
+    <div class="hstat"><div class="v" id="h-hlt">—</div><div class="l">Health</div></div>
+    <div class="hstat"><div class="v" id="h-rwd">—</div><div class="l">Best reward</div></div>
+    <div class="hstat"><div class="v" id="h-kpt">—</div><div class="l">Kept</div></div>
+  </div>
+  <div class="hright">
+    <div class="spill"><div class="sdot live" id="sdot"></div><span id="stext">Idle</span></div>
+    <div class="pbadge" id="pbadge"></div>
+    <input id="cycle-in" type="number" min="1" max="9999" placeholder="N cycles">
+    <button class="hbtn" id="btn-n" onclick="startN()">Run N ↗</button>
+    <button class="hbtn primary" id="btn-inf" onclick="startForever()">Run ∞</button>
+    <button class="hbtn stop" id="btn-stop" onclick="stopRunner()">Stop ■</button>
+    <button class="hbtn" id="btn-one" onclick="runOne()">+1</button>
+    <button class="hbtn reset" onclick="resetExp()">↺ Reset</button>
+    <button class="hbtn" onclick="document.getElementById('setup-modal').style.display='flex'" style="border-color:var(--border2)">⚙ Setup</button>
+  </div>
+</header>
+
+<!-- Main grid -->
+<div class="main">
+
+  <!-- ── LEFT COL ── -->
+  <div class="left-col">
+    <!-- Reef Canvas -->
+    <div class="panel reef-panel">
+      <div class="ph">
+        <span class="ph-title" style="font-family:var(--pixel);font-size:8px;color:var(--theme)">LIVE REEF</span>
+        <span class="ph-badge" id="reef-cyc">cycle 0</span>
+      </div>
+      <div class="reef-wrap" id="reef-wrap">
+        <canvas id="reef"></canvas>
+        <div class="reef-hud">
+          <div class="hud-item"><div class="hud-dot" id="hd-b" style="background:#00d2b4"></div><span>Bleach <b id="hv-b">—</b></span></div>
+          <div class="hud-item"><div class="hud-dot" id="hd-d" style="background:#4db8ff"></div><span>DHW <b id="hv-d">—</b></span></div>
+          <div class="hud-item"><div class="hud-dot" id="hd-o" style="background:#c084fc"></div><span>ω <b id="hv-o">—</b></span></div>
+          <div class="hud-item"><div class="hud-dot" id="hd-w" style="background:#4ade80"></div><span>WQ <b id="hv-w">—</b></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Env display below reef -->
+    <div class="panel env-panel">
+      <div class="ph">
+        <span class="ph-title">Current environment state</span>
+        <span class="ph-badge" id="env-health-badge">health —</span>
+      </div>
+      <div class="env-grid" id="env-grid">
+        <!-- Generated by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT COL ── -->
+  <div class="right-col">
+    <!-- Metric cards -->
+    <div class="metrics-row">
+      <div class="mc" style="--accent:var(--theme)"><div class="mc-l">Health</div><div class="mc-v" id="mc-hlt">—</div><div class="mc-d" id="mc-hlt-d"></div></div>
+      <div class="mc" style="--accent:#ff7d3b"><div class="mc-l">Bleaching</div><div class="mc-v" id="mc-blch">—</div><div class="mc-d" id="mc-blch-d"></div></div>
+      <div class="mc" style="--accent:#ff4444"><div class="mc-l">DHW stress</div><div class="mc-v" id="mc-dhw">—</div><div class="mc-d" id="mc-dhw-d"></div></div>
+      <div class="mc" style="--accent:#4db8ff"><div class="mc-l">Best reward</div><div class="mc-v" id="mc-rwd">—</div><div class="mc-d" id="mc-rwd-d"></div></div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="charts-row">
+      <div class="panel chart-panel">
+        <div class="ph"><span class="ph-title">Health score</span><span style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">baseline 38.6</span></div>
+        <div class="chart-wrap"><canvas id="hchart"></canvas></div>
+      </div>
+      <div class="panel chart-panel">
+        <div class="ph"><span class="ph-title">RL reward curve</span><span style="font-size:9px;color:var(--text-muted)">reinforcement signal</span></div>
+        <div class="chart-wrap"><canvas id="rchart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Bottom row -->
+    <div class="bottom-row">
+      <!-- Scoreboard -->
+      <div class="panel" style="min-height:0;">
+        <div class="ph">
+          <span class="ph-title">Experiment scoreboard</span>
+          <span class="ph-badge" id="sb-count">0 cycles</span>
+        </div>
+        <div class="sb-scroll">
+          <table class="sb-table">
+            <thead><tr>
+              <th>#</th><th>Intervention</th><th>Reward</th><th>Health</th><th>Status</th>
+            </tr></thead>
+            <tbody id="sb-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Program.md -->
+      <div class="panel" style="min-height:0;">
+        <div class="ph">
+          <span class="ph-title">Research program</span>
+          <span style="font-size:9px;color:var(--theme);font-family:var(--mono)">program.md</span>
+        </div>
+        <div class="prog-content" id="prog"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ════════════════════════════════════════════════
+//  SETUP MODAL
+// ════════════════════════════════════════════════
+const SLIDER_DEFS = [
+  {key:'bleaching_pct',   label:'Bleaching %',     min:0,   max:100, step:1,    def:65,   unit:'%',  note:'0% = pristine'},
+  {key:'temperature_c',  label:'Temperature',      min:25,  max:33,  step:.1,   def:29.5, unit:'°C', note:'healthy <28°C'},
+  {key:'ph',             label:'pH',               min:7.6, max:8.4, step:.01,  def:7.9,  unit:'',   note:'healthy 8.1–8.3'},
+  {key:'dhw',            label:'DHW stress',       min:0,   max:15,  step:.1,   def:0,    unit:'',   note:'danger >4'},
+  {key:'species_count',  label:'Species count',    min:1,   max:40,  step:1,    def:18,   unit:'',   note:'target 35+'},
+  {key:'coral_cover_pct',label:'Coral cover %',    min:0,   max:100, step:1,    def:22,   unit:'%',  note:'target 60%+'},
+  {key:'water_quality',  label:'Water quality',    min:0,   max:1,   step:.01,  def:.45,  unit:'',   note:'target 0.8+'},
+  {key:'adaptation_score',label:'Adaptation',      min:0,   max:1,   step:.01,  def:.15,  unit:'',   note:'target 0.5+'},
+];
+
+const setupValues = {};
+SLIDER_DEFS.forEach(d => setupValues[d.key] = d.def);
+
+function buildSliders() {
+  const grid = document.getElementById('sliders-grid');
+  grid.innerHTML = SLIDER_DEFS.map(d => `
+    <div class="slider-row">
+      <div class="slider-name">${d.label}</div>
+      <div class="slider-val-row">
+        <span class="slider-current" id="sv-${d.key}">${d.def}${d.unit}</span>
+        <span class="slider-range">${d.min} – ${d.max}</span>
+      </div>
+      <input type="range" min="${d.min}" max="${d.max}" step="${d.step}" value="${d.def}"
+        oninput="onSlider('${d.key}',this.value,'${d.unit}')"
+        style="accent-color:var(--theme)">
+      <div style="font-size:8px;color:var(--text-muted);margin-top:2px">${d.note}</div>
+    </div>
+  `).join('');
+}
+
+function onSlider(key, val, unit) {
+  setupValues[key] = parseFloat(val);
+  document.getElementById('sv-'+key).textContent = parseFloat(val).toFixed(key==='ph'?2:key.includes('quality')||key.includes('adapt')?2:1) + unit;
+  updateModalPreview();
+}
+
+function updateModalPreview() {
+  const v = setupValues;
+  let s = 0;
+  s += Math.max(0, (100-v.bleaching_pct)/100)*30;
+  s += Math.max(0, 1-v.dhw/10)*20;
+  const omega = Math.min(5, Math.max(1, 3.6+5*(v.ph-8.1)));
+  s += Math.min(1,Math.max(0,(omega-1)/2.5))*15;
+  s += Math.min(1,v.water_quality)*15;
+  s += Math.min(1,v.coral_cover_pct/60)*10;
+  s += Math.min(1,v.species_count/35)*10;
+  const score = Math.round(s);
+  document.getElementById('mhp-score').textContent = score;
+  document.getElementById('mhp-bar').style.width = score+'%';
+  const cls = score < 40 ? 'bad' : score < 65 ? 'normal' : 'good';
+  const labels = {bad:'Critical conditions — expect rapid degradation', normal:'Typical conditions', good:'Strong starting conditions'};
+  document.getElementById('mhp-label').textContent = labels[cls];
+  // Tint modal
+  const colors = {bad:'#ff4444',normal:'#4db8ff',good:'#00ff88'};
+  document.getElementById('modal-bar').style.background = colors[cls];
+  document.getElementById('modal-box').style.borderColor = colors[cls]+'44';
+}
+
+function loadDefaults() {
+  SLIDER_DEFS.forEach(d => {
+    setupValues[d.key] = d.def;
+    document.getElementById('sv-'+d.key).textContent = d.def + d.unit;
+    const inputs = document.querySelectorAll('input[type=range]');
+    inputs.forEach(inp => { if(inp.oninput.toString().includes(d.key)) inp.value = d.def; });
+  });
+  // Easier: rebuild
+  buildSliders();
+  updateModalPreview();
+}
+
+async function applySetupAndStart() {
+  try {
+    await fetch('/configure', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(setupValues)
+    });
+  } catch(e) { /* server may not have endpoint yet, continue */ }
+  document.getElementById('setup-modal').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  initReef();
+  fetchData();
+  fetchProg();
+  // Apply initial theme based on setup health
+  const score = parseInt(document.getElementById('mhp-score').textContent);
+  applyTheme(score);
+  // Set reef initial visual
+  updateReef({
+    bleaching_pct: setupValues.bleaching_pct,
+    temperature_c: setupValues.temperature_c,
+    dhw: setupValues.dhw, ph: setupValues.ph,
+    water_quality: setupValues.water_quality,
+    species_count: setupValues.species_count,
+    coral_cover_pct: setupValues.coral_cover_pct,
+    adaptation_score: setupValues.adaptation_score,
+    omega_arag: Math.min(5,Math.max(1,3.6+5*(setupValues.ph-8.1)))
+  });
+}
+
+// ════════════════════════════════════════════════
+//  COLOR THEME
+// ════════════════════════════════════════════════
+function applyTheme(score) {
+  const root = document.documentElement;
+  root.classList.remove('theme-bad','theme-normal','theme-good');
+  if (score < 40) root.classList.add('theme-bad');
+  else if (score < 62) root.classList.add('theme-normal');
+  else root.classList.add('theme-good');
+}
+
+// ════════════════════════════════════════════════
+//  8-BIT PIXEL REEF CANVAS
+// ════════════════════════════════════════════════
+let reefCtx, reefW, reefH;
+let fishState = [];
+let reefState = null;
+let rafId = null;
+
+// Pixel art color palettes
+const PAL = {
+  // Water
+  sky1:'#0a4060', sky2:'#0d5070', sky3:'#104060', sky4:'#0d3854',
+  // Sand
+  sand1:'#a07820', sand2:'#b08830', sand3:'#906010',
+  // Rocks
+  rock1:'#304050', rock2:'#405060', rock3:'#253040',
+  // Corals (healthy → bleached)
+  cor_o:'#e06020', cor_r:'#d02860', cor_p:'#8030c0', cor_t:'#20a060', cor_y:'#d0a000',
+  // Bleached white
+  bl:'#e8e4d8', bl2:'#d0ccbc',
+  // Seaweed
+  sw1:'#204820', sw2:'#306030',
+  // Bubbles
+  bub:'rgba(160,220,255,0.5)',
+};
+
+const TILE = 4; // each logical pixel = 4 screen pixels
+
+function initReef() {
+  const wrap = document.getElementById('reef-wrap');
+  const canvas = document.getElementById('reef');
+  reefW = wrap.clientWidth;
+  reefH = wrap.clientHeight || 192;
+  canvas.width  = reefW;
+  canvas.height = reefH;
+  reefCtx = canvas.getContext('2d');
+  reefCtx.imageSmoothingEnabled = false;
+
+  // Init fish
+  const LW = Math.floor(reefW/TILE);
+  const LH = Math.floor(reefH/TILE);
+  fishState = [
+    {type:0, x:10,   y:LH*.25, dx:.35, flip:1, frame:0},
+    {type:1, x:35,   y:LH*.40, dx:.25, flip:1, frame:4},
+    {type:2, x:60,   y:LH*.20, dx:.40, flip:-1, frame:2},
+    {type:3, x:80,   y:LH*.35, dx:.20, flip:1, frame:6},
+    {type:4, x:20,   y:LH*.55, dx:.15, flip:1, frame:0},
+    {type:0, x:95,   y:LH*.30, dx:.30, flip:-1, frame:3},
+  ];
+
+  if (rafId) cancelAnimationFrame(rafId);
+  drawReefLoop();
+}
+
+function drawReefLoop() {
+  if (reefCtx) drawReef();
+  rafId = requestAnimationFrame(drawReefLoop);
+}
+
+function lerp(a,b,t){ return a+(b-a)*t; }
+function clamp(v,lo,hi){ return Math.max(lo,Math.min(hi,v)); }
+
+function drawReef() {
+  const ctx = reefCtx;
+  const W = reefW, H = reefH;
+  const LW = Math.floor(W/TILE), LH = Math.floor(H/TILE);
+  const s = reefState || {};
+  const bleach = (s.bleaching_pct||65)/100;
+  const dhw    = s.dhw||0;
+  const wq     = s.water_quality||0.45;
+  const temp   = s.temperature_c||29.5;
+  const spec   = s.species_count||18;
+  const cover  = (s.coral_cover_pct||22)/100;
+
+  ctx.clearRect(0,0,W,H);
+
+  // Water background bands (8-bit style = discrete bands)
+  const heatT = clamp((temp-27)/6, 0, 1);
+  const waterBands = [
+    [0,   .15, lerpColor('#081830','#201008',heatT)],
+    [.15, .30, lerpColor('#0a2840','#281408',heatT)],
+    [.30, .50, lerpColor('#0c3448','#301808',heatT)],
+    [.50, .70, lerpColor('#0e3850','#38200a',heatT)],
+    [.70, .85, lerpColor('#102848','#2a1808',heatT)],
+    [.85, 1.0, lerpColor('#0c1e38','#201008',heatT)],
+  ];
+  waterBands.forEach(([y0,y1,col]) => {
+    ctx.fillStyle = col;
+    ctx.fillRect(0, y0*H, W, (y1-y0)*H);
+  });
+
+  // Heat shimmer at very high DHW
+  if (dhw > 3) {
+    ctx.fillStyle = `rgba(255,60,0,${Math.min(.25,(dhw-3)/15)})`;
+    ctx.fillRect(0,0,W,H*.4);
+  }
+
+  // Pixel-art light rays (diagonal bands)
+  const rayAlpha = 0.04 + wq * 0.05;
+  ctx.fillStyle = `rgba(140,210,255,${rayAlpha})`;
+  [[W*.30,0,W*.36,H*.7],[W*.50,0,W*.55,H*.7],[W*.70,0,W*.74,H*.7]].forEach(([x0,y0,x1,y1])=>{
+    ctx.beginPath();
+    ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);ctx.lineTo(x1+(x1-x0)*.3,y1);ctx.lineTo(x0+(x0-x0)*.3,y1);
+    ctx.fill();
+  });
+
+  // Sandy floor (blocky horizontal stripes)
+  const floorY = H * .80;
+  paintBlock(ctx, 0, floorY, W, H*.06, '#a07820');
+  paintBlock(ctx, 0, floorY+H*.06, W, H*.08, '#806010');
+  paintBlock(ctx, 0, floorY+H*.14, W, H*.06, '#603808');
+
+  // Sand texture (random dots)
+  ctx.fillStyle = '#c09030';
+  for(let i=0;i<30;i++){
+    const sx=(Math.sin(i*17.3)*0.5+0.5)*W;
+    const sy=floorY+(Math.sin(i*5.7)*0.5+0.5)*H*.10;
+    paintBlock(ctx,sx,sy,TILE*1,TILE*.5,'#c09030');
+  }
+
+  // Rocks
+  drawRock(ctx, W*.08, floorY-H*.08, W*.12, H*.12);
+  drawRock(ctx, W*.75, floorY-H*.10, W*.15, H*.14);
+  drawRock(ctx, W*.45, floorY-H*.04, W*.08, H*.06);
+
+  // Corals
+  const numCorals = Math.max(2, Math.round(4 + cover * 4));
+  const coralPositions = [
+    {x:W*.20, h:H*.22, type:0},
+    {x:W*.35, h:H*.16, type:1},
+    {x:W*.52, h:H*.20, type:2},
+    {x:W*.63, h:H*.14, type:3},
+    {x:W*.82, h:H*.18, type:0},
+    {x:W*.14, h:H*.12, type:1},
+  ];
+  coralPositions.slice(0,numCorals).forEach(c => {
+    drawCoral(ctx, c.x, floorY, c.h, c.type, bleach);
+  });
+
+  // Seaweed
+  [[W*.10,floorY],[W*.60,floorY],[W*.88,floorY]].forEach(([x,y])=>{
+    drawSeaweed(ctx,x,y,H*.12);
+  });
+
+  // Bubbles (animated via time)
+  const t = Date.now()/1000;
+  for(let i=0;i<8;i++){
+    const bx = (Math.sin(i*2.3+t*.2)*0.5+0.5)*W;
+    const by = ((Math.sin(i*1.7+t*.4)*0.5+0.5)*(floorY*.9));
+    const br = TILE*(0.5+Math.sin(i*3.1)*.3);
+    ctx.strokeStyle=`rgba(160,220,255,${.3+Math.sin(t+i)*.1})`;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.arc(bx,by,br,0,Math.PI*2);
+    ctx.stroke();
+  }
+
+  // Fish (animated)
+  const visibleFish = Math.round(clamp(spec/35,0,1)*fishState.length);
+  fishState.forEach((f,i) => {
+    // Animate position
+    f.x += f.dx * f.flip * 0.5;
+    f.frame = (f.frame + .08) % 4;
+    if (f.x > LW+14) { f.x = -14; }
+    if (f.x < -14) { f.x = LW+14; }
+    if (i < visibleFish) {
+      drawPixelFish(ctx, f.type, f.x*TILE, f.y*TILE, f.flip, bleach);
+    }
+  });
+
+  // Surface shimmer
+  ctx.fillStyle='rgba(160,224,255,.08)';
+  ctx.fillRect(0,0,W,TILE);
+  for(let xi=0;xi<LW;xi+=3){
+    if((xi+Math.floor(t*3))%5===0){
+      ctx.fillStyle='rgba(200,240,255,.12)';
+      ctx.fillRect(xi*TILE,0,TILE*2,TILE);
+    }
+  }
+}
+
+function paintBlock(ctx,x,y,w,h,c){
+  ctx.fillStyle=c;
+  // Snap to TILE grid
+  const x0=Math.floor(x/TILE)*TILE, y0=Math.floor(y/TILE)*TILE;
+  const x1=Math.ceil((x+w)/TILE)*TILE, y1=Math.ceil((y+h)/TILE)*TILE;
+  ctx.fillRect(x0,y0,x1-x0,y1-y0);
+}
+
+function drawRock(ctx,x,y,w,h){
+  const colors=['#304050','#405060','#253040','#354555'];
+  // Main body
+  ctx.fillStyle=colors[0];
+  const rx=Math.floor(x/TILE)*TILE, ry=Math.floor(y/TILE)*TILE;
+  const rw=Math.ceil(w/TILE)*TILE, rh=Math.ceil(h/TILE)*TILE;
+  // Chunky rock shape
+  ctx.fillRect(rx+TILE,ry,rw-TILE*2,rh);
+  ctx.fillRect(rx,ry+TILE,rw,rh-TILE);
+  ctx.fillStyle=colors[1];
+  ctx.fillRect(rx+TILE,ry+TILE,rw-TILE*3,TILE*2);
+  ctx.fillStyle=colors[3];
+  ctx.fillRect(rx+TILE,ry+rh-TILE*2,rw-TILE*2,TILE);
+}
+
+function drawCoral(ctx,cx,floorY,maxH,type,bleach){
+  // Color: interpolate healthy→bleached
+  const healthyColors=[['#e06020','#f08040'],['#d02860','#e04880'],['#8030c0','#a050e0'],['#20a060','#40c080']];
+  const [c1,c2]=healthyColors[type%4];
+  const col=lerpColor(c1,'#d8d0c0',bleach);
+  const col2=lerpColor(c2,'#e8e0d0',bleach);
+
+  const bx=Math.floor(cx/TILE)*TILE;
+  const by=Math.floor((floorY-TILE*2)/TILE)*TILE;
+  const bh=Math.floor(maxH/TILE)*TILE;
+
+  if(type===0){
+    // Branching coral
+    for(let seg=0;seg<6;seg++){
+      const sy=by-seg*(bh/6);
+      const spread=TILE*2*(1+seg*.3);
+      ctx.fillStyle=seg%2?col:col2;
+      ctx.fillRect(bx-spread,sy,spread*2+TILE,TILE);
+      ctx.fillRect(bx-TILE,by,TILE*2,bh);
+    }
+  } else if(type===1){
+    // Brain coral (rounded rectangle)
+    ctx.fillStyle=col;
+    const r=TILE*3;
+    ctx.fillRect(bx-r,by-r*1.5,r*2,r*3);
+    ctx.fillRect(bx-r*1.5,by-r,r*3,r*2);
+    ctx.fillStyle=col2;
+    // Lines
+    for(let li=0;li<3;li++){
+      ctx.fillRect(bx-r+TILE,by-r+li*TILE*2,r*2-TILE,TILE*.5);
+    }
+  } else if(type===2){
+    // Fan coral
+    ctx.fillStyle=col;
+    ctx.fillRect(bx-TILE*.5,by,TILE,bh);
+    for(let fi=0;fi<5;fi++){
+      const fy=by+fi*(bh/5);
+      const fw=TILE*(1+fi*.5);
+      ctx.fillStyle=fi%2?col:col2;
+      ctx.fillRect(bx-fw,fy,fw*2,TILE*.7);
+    }
+  } else {
+    // Tube coral
+    const numTubes=3;
+    for(let ti=0;ti<numTubes;ti++){
+      const tx=bx+(ti-1)*TILE*2.5;
+      const th=bh*(0.7+ti*.15);
+      ctx.fillStyle=ti%2?col:col2;
+      ctx.fillRect(tx-TILE,by+(bh-th),TILE*2,th);
+      ctx.fillStyle=lerpColor('#ffffff',col,.3);
+      ctx.fillRect(tx-TILE*.5,by+(bh-th),TILE,TILE);
+    }
+  }
+}
+
+function drawSeaweed(ctx,x,baseY,maxH){
+  const col1='#204820', col2='#306030';
+  const sx=Math.floor(x/TILE)*TILE;
+  const t=Date.now()/3000;
+  for(let seg=0;seg<6;seg++){
+    const waver=Math.sin(t+seg*.8)*TILE*(seg*.3);
+    const wy=baseY-seg*(maxH/6);
+    ctx.fillStyle=seg%2?col1:col2;
+    ctx.fillRect(sx+waver-TILE*.5,wy,TILE,maxH/6+TILE);
+  }
+}
+
+// Pixel art fish — Water-type inspired original designs
+function drawPixelFish(ctx,type,px,py,dir,bleach){
+  ctx.save();
+  ctx.translate(px,py);
+  if(dir<0) { ctx.scale(-1,1); }
+  ctx.imageSmoothingEnabled=false;
+  const S=TILE; // pixel size
+  const t=Date.now()/400;
+  const tailWag=Math.sin(t)*1.5*S;
+
+  switch(type%5){
+    case 0: drawKarpFish(ctx,S,tailWag,bleach); break;
+    case 1: drawBlueFish(ctx,S,tailWag,bleach); break;
+    case 2: drawGoldFish(ctx,S,tailWag,bleach); break;
+    case 3: drawJellyFish(ctx,S,bleach); break;
+    case 4: drawSerpentFish(ctx,S,tailWag,bleach); break;
+  }
+  ctx.restore();
+}
+
+function fishCol(c,bleach){ return lerpColor(c,'#c8c0b0',bleach*.6); }
+
+function drawKarpFish(ctx,S,tw,bl){
+  // Magikarp-inspired: red/orange round body, spiky fin, whiskers
+  const R=fishCol('#c82020',bl), O=fishCol('#e05030',bl), W='#f0f0f0', K='#101010';
+  // Tail
+  ctx.fillStyle=fishCol('#a01818',bl);
+  ctx.fillRect(-6*S+tw,-1*S,2*S,3*S);
+  ctx.fillRect(-5*S+tw,-2*S,1*S,5*S);
+  // Body
+  ctx.fillStyle=R;
+  for(let y=-2;y<3;y++) for(let x=-4;x<5;x++) ctx.fillRect(x*S,y*S,S,S);
+  ctx.fillStyle=R;
+  ctx.fillRect(-3*S,-3*S,6*S,S);
+  ctx.fillRect(-3*S,3*S,6*S,S);
+  // Orange underside
+  ctx.fillStyle=O;
+  ctx.fillRect(-2*S,1*S,4*S,S);
+  // Dorsal fin
+  ctx.fillStyle=fishCol('#ff5020',bl);
+  for(let i=0;i<4;i++) ctx.fillRect((i-2)*S,-4*S-i*S*.5,S,S+(i*S*.5));
+  // Eye
+  ctx.fillStyle=W; ctx.fillRect(3*S,-S,S*1.5,S*1.5);
+  ctx.fillStyle=K; ctx.fillRect(3.5*S,-.5*S,S,S);
+  // Whiskers
+  ctx.fillStyle=fishCol('#d04020',bl);
+  ctx.fillRect(4*S,S,3*S,S*.3);
+  ctx.fillRect(4*S,S*.5,3*S,S*.3);
+}
+
+function drawBlueFish(ctx,S,tw,bl){
+  // Squirtle-inspired: blue rounded fish with shell-like pattern
+  const B=fishCol('#2060c0',bl), LB=fishCol('#4090e0',bl), W='#f0f0f0', K='#101010';
+  ctx.fillStyle=fishCol('#1040a0',bl);
+  ctx.fillRect(-6*S+tw,-S,2*S,2*S);
+  ctx.fillStyle=B;
+  for(let y=-2;y<3;y++) for(let x=-4;x<5;x++) ctx.fillRect(x*S,y*S,S,S);
+  ctx.fillRect(-3*S,-3*S,5*S,S); ctx.fillRect(-3*S,3*S,5*S,S);
+  // Shell pattern
+  ctx.fillStyle=LB;
+  ctx.fillRect(-S,-S,2*S,2*S);
+  ctx.fillStyle=fishCol('#80b0f0',bl);
+  ctx.fillRect(0,-S*.5,S,S);
+  // Fin
+  ctx.fillStyle=fishCol('#1848b0',bl);
+  for(let i=0;i<3;i++) ctx.fillRect((i-1)*S,-4*S,S,S+i*S*.3);
+  // Eye
+  ctx.fillStyle=W; ctx.fillRect(3*S,-S,S*1.5,S*1.5);
+  ctx.fillStyle=K; ctx.fillRect(3.5*S,-.5*S,S,S);
+}
+
+function drawGoldFish(ctx,S,tw,bl){
+  // Goldeen-inspired: yellow/white with horn and flowing fins
+  const Y=fishCol('#e8c020',bl), W=fishCol('#f8f0d8',bl), O=fishCol('#e06820',bl), K='#202010';
+  ctx.fillStyle=fishCol('#c8a010',bl);
+  ctx.fillRect(-5*S+tw*1.2,-S*.5,2*S,1*S);
+  ctx.fillStyle=W;
+  for(let y=-2;y<3;y++) for(let x=-3;x<5;x++) ctx.fillRect(x*S,y*S,S,S);
+  ctx.fillRect(-3*S,-3*S,4*S,S); ctx.fillRect(-2*S,3*S,4*S,S);
+  ctx.fillStyle=Y; ctx.fillRect(-2*S,-2*S,3*S,S);
+  // Flowing dorsal fin
+  ctx.fillStyle=O;
+  for(let i=0;i<5;i++) ctx.fillRect((i-2)*S,(-4-i%2)*S,S,S*2);
+  // Horn
+  ctx.fillStyle=O; ctx.fillRect(3*S,-3*S,S,S); ctx.fillRect(3.5*S,-4*S,S*.5,S);
+  // Eye
+  ctx.fillStyle='#f8f8f0'; ctx.fillRect(3*S,-S,S*1.5,S*1.5);
+  ctx.fillStyle=K; ctx.fillRect(3.5*S,-.5*S,S,S);
+}
+
+function drawJellyFish(ctx,S,bl){
+  // Tentacool-inspired: blue jellyfish with tentacles
+  const B=fishCol('#2090c0',bl), LB=fishCol('#50c0e8',bl), P=fishCol('#c020a0',bl);
+  const t=Date.now()/600;
+  // Bell
+  ctx.fillStyle=B;
+  for(let y=-3;y<1;y++) for(let x=-3;x<4;x++) ctx.fillRect(x*S,y*S,S,S);
+  ctx.fillRect(-2*S,-4*S,4*S,S);
+  ctx.fillStyle=LB;
+  ctx.fillRect(-2*S,-3*S,3*S,S); ctx.fillRect(-S,-2*S,2*S,S);
+  // Crystal gems
+  ctx.fillStyle=fishCol('#ff4090',bl);
+  ctx.fillRect(-S,-2*S,S,S); ctx.fillRect(S,-2*S,S,S);
+  // Tentacles (animated wave)
+  ctx.fillStyle=P;
+  for(let ti=0;ti<5;ti++){
+    const tx=(ti-2)*S*1.5;
+    const wave=Math.sin(t+ti*.8)*S*1.2;
+    ctx.fillRect(tx+wave,S,S*.6,S*2);
+    ctx.fillRect(tx+wave*.6,S*3,S*.4,S*1.5);
+  }
+}
+
+function drawSerpentFish(ctx,S,tw,bl){
+  // Horsea/Dratini-inspired: teal serpentine
+  const T=fishCol('#20b0a0',bl), LT=fishCol('#40d0c0',bl), K='#101010';
+  const t=Date.now()/500;
+  // Body segments
+  for(let seg=0;seg<6;seg++){
+    const wx=Math.sin(t+seg*.7)*S*.8;
+    ctx.fillStyle=seg%2?T:LT;
+    ctx.fillRect(-3*S+seg*S+wx,(-1+seg*.2)*S,S*1.5,S*1.5);
+  }
+  // Fin/crest
+  ctx.fillStyle=T;
+  for(let i=0;i<3;i++) ctx.fillRect((-2+i)*S,-2*S-i*S*.5,S*.8,S+i*S*.5);
+  // Head
+  ctx.fillStyle=LT;
+  ctx.fillRect(2*S,-2*S,S*2,S*3);
+  // Eye
+  ctx.fillStyle='#f0f8ff'; ctx.fillRect(3*S,-S,S,S);
+  ctx.fillStyle=K; ctx.fillRect(3.2*S,-.8*S,S*.6,S*.6);
+}
+
+function lerpColor(hex1,hex2,t){
+  const p=s=>parseInt(s,16);
+  const r1=p(hex1.slice(1,3)),g1=p(hex1.slice(3,5)),b1=p(hex1.slice(5,7));
+  const r2=p(hex2.slice(1,3)),g2=p(hex2.slice(3,5)),b2=p(hex2.slice(5,7));
+  const r=Math.round(r1+(r2-r1)*t), g=Math.round(g1+(g2-g1)*t), b=Math.round(b1+(b2-b1)*t);
+  return `rgb(${r},${g},${b})`;
+}
+
+function updateReef(state){
+  reefState = state;
+  const b=state.bleaching_pct,d=state.dhw||0,o=state.omega_arag||2.6,w=state.water_quality||0;
+  document.getElementById('hv-b').textContent=b.toFixed(1)+'%';
+  document.getElementById('hv-d').textContent=d.toFixed(2);
+  document.getElementById('hv-o').textContent=o.toFixed(2);
+  document.getElementById('hv-w').textContent=w.toFixed(3);
+  document.getElementById('hd-b').style.background=b<30?'#00ff88':b<60?'#ffb347':'#ff4444';
+  document.getElementById('hd-d').style.background=d<2?'#4db8ff':d<4?'#ffb347':'#ff4444';
+  document.getElementById('hd-o').style.background=o>3.2?'#c084fc':o>2.8?'#ffb347':'#ff4444';
+  document.getElementById('hd-w').style.background=w>.7?'#4ade80':w>.5?'#ffb347':'#ff4444';
+}
+
+// ════════════════════════════════════════════════
+//  ENV DISPLAY GRID
+// ════════════════════════════════════════════════
+const ENV_FIELDS = [
+  {key:'bleaching_pct',  label:'Bleaching', unit:'%',   min:0,   max:100, invert:true},
+  {key:'dhw',            label:'DHW',       unit:'',    min:0,   max:15,  invert:true},
+  {key:'ph',             label:'pH',        unit:'',    min:7.6, max:8.4, invert:false},
+  {key:'omega_arag',     label:'ω arag',    unit:'',    min:1,   max:5,   invert:false},
+  {key:'temperature_c',  label:'Temp',      unit:'°C',  min:25,  max:33,  invert:true},
+  {key:'water_quality',  label:'WQ',        unit:'',    min:0,   max:1,   invert:false},
+  {key:'adaptation_score',label:'Adapt',    unit:'',    min:0,   max:1,   invert:false},
+  {key:'coral_cover_pct',label:'Cover',     unit:'%',   min:0,   max:100, invert:false},
+];
+
+function updateEnvGrid(state){
+  const grid=document.getElementById('env-grid');
+  grid.innerHTML=ENV_FIELDS.map(f=>{
+    const v=(state[f.key]||0);
+    const pct=clamp((v-f.min)/(f.max-f.min),0,1);
+    const barPct=f.invert?(1-pct):pct;
+    const barCol=barPct>.65?'#00ff88':barPct>.35?'#ffb347':'#ff4444';
+    const disp=typeof v==='number'?v.toFixed(f.unit==='°C'?1:f.min<1&&f.max<=1?3:f.unit==='%'?1:2):v;
+    return `<div class="env-card">
+      <div class="ec-name">${f.label}</div>
+      <div class="ec-val">${disp}${f.unit}</div>
+      <div class="ec-bar"><div class="ec-fill" style="width:${barPct*100}%;background:${barCol}"></div></div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+//  CHARTS
+// ════════════════════════════════════════════════
+Chart.defaults.color='#7ba8a3';
+Chart.defaults.borderColor='rgba(0,210,180,.06)';
+Chart.defaults.font.family="'JetBrains Mono',monospace";
+Chart.defaults.font.size=9;
+
+const cDefaults={responsive:true,maintainAspectRatio:false,animation:{duration:200},
+  plugins:{legend:{display:false},tooltip:{backgroundColor:'#0d1f24',borderColor:'rgba(0,210,180,.3)',borderWidth:1,titleColor:'#00d2b4',bodyColor:'#e0f2f0',padding:6}},
+  scales:{x:{grid:{color:'rgba(0,210,180,.05)'},ticks:{maxTicksLimit:6}},y:{grid:{color:'rgba(0,210,180,.05)'}}}};
+
+const hChart=new Chart(document.getElementById('hchart'),{type:'line',data:{labels:[],datasets:[
+  {data:[],borderColor:'#00d2b4',backgroundColor:'rgba(0,210,180,.07)',borderWidth:1.5,pointRadius:0,tension:.4,fill:true},
+  {data:[],borderColor:'rgba(0,210,180,.2)',borderWidth:1,borderDash:[3,3],pointRadius:0,tension:0,fill:false}
+]},options:{...cDefaults,scales:{...cDefaults.scales,y:{...cDefaults.scales.y,min:30,max:100}}}});
+
+const rChart=new Chart(document.getElementById('rchart'),{type:'bar',data:{labels:[],datasets:[
+  {data:[],backgroundColor:ctx=>{const v=ctx.raw;return v>.15?'rgba(0,255,136,.7)':v>0?'rgba(0,210,180,.4)':'rgba(255,68,68,.4)'},borderRadius:2,borderSkipped:false}
+]},options:{...cDefaults,scales:{...cDefaults.scales,y:{...cDefaults.scales.y,min:-.3,max:.6}}}});
+
+// ════════════════════════════════════════════════
+//  SCOREBOARD
+// ════════════════════════════════════════════════
+const INT_CLASS={
+  combined:'int-combined',shading:'int-shading',
+  alkalinity_enhancement:'int-alkalinity',pollution_reduction:'int-pollution',
+  assisted_evolution:'int-assisted',
+};
+
+function updateScoreboard(experiments){
+  const tbody=document.getElementById('sb-body');
+  const sorted=[...experiments].reverse().slice(0,60);
+  tbody.innerHTML=sorted.map(e=>{
+    const intKey=e.intervention||'';
+    const cls=intKey.startsWith('Override')?'int-override':(INT_CLASS[intKey]||'int-combined');
+    const rowCls=intKey.startsWith('Override')?'sb-row-override':e.kept?'sb-row-kept':'sb-row-disc';
+    const rwd=e.reward||0;
+    const rwdCol=rwd>.1?'#00ff88':rwd>0?'#00d2b4':'#ff4444';
+    const barW=Math.abs(rwd)/.6*100;
+    const health=e.health_score||0;
+    const prevHealth=experiments[e.cycle-2]?.health_score||health;
+    const hDelta=health-prevHealth;
+    const statusIcon=e.kept?'<span style="color:#00d2b4">✓</span>':'<span style="color:#604060">↩</span>';
+    return `<tr class="${rowCls}">
+      <td style="font-family:var(--mono);color:var(--text-muted)">${e.cycle}</td>
+      <td><span class="int-pill ${cls}">${(intKey||'—').replace(/_/g,' ')}</span></td>
+      <td style="font-family:var(--mono)">
+        <span style="color:${rwdCol}">${rwd>0?'+':''}${rwd.toFixed(3)}</span>
+        <div class="rw-bar"><div class="rw-fill" style="width:${barW.toFixed(1)}%;background:${rwdCol}"></div></div>
+      </td>
+      <td style="font-family:var(--mono);color:var(--text-dim)">${health.toFixed(1)}
+        ${hDelta!==0?`<span style="color:${hDelta>0?'#00ff88':'#ff4444'};font-size:8px">${hDelta>0?'+':''}${hDelta.toFixed(1)}</span>`:''}
+      </td>
+      <td>${statusIcon}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('sb-count').textContent=`${experiments.length} cycles`;
+}
+
+// ════════════════════════════════════════════════
+//  MAIN DATA FETCH
+// ════════════════════════════════════════════════
+function updateDashboard(data){
+  const {experiments,summary}=data;
+  if(!experiments||!experiments.length) return;
+  const last=experiments[experiments.length-1];
+  const state=last.state_after;
+
+  // Apply color theme
+  applyTheme(summary.current_health);
+
+  // Header
+  document.getElementById('h-cyc').textContent=summary.total_cycles;
+  document.getElementById('h-hlt').textContent=summary.current_health+'/100';
+  document.getElementById('h-rwd').textContent=summary.best_reward;
+  document.getElementById('h-kpt').textContent=summary.kept_count+'/'+summary.total_cycles;
+  document.getElementById('reef-cyc').textContent='cycle '+summary.total_cycles;
+  document.getElementById('env-health-badge').textContent='health '+summary.current_health;
+
+  // Metrics
+  document.getElementById('mc-hlt').textContent=summary.current_health;
+  const hd=summary.current_health-38.6;
+  document.getElementById('mc-hlt-d').innerHTML=`<span class="${hd>0?'up':'dn'}">${hd>0?'+':''}${hd.toFixed(1)} pts</span>`;
+  document.getElementById('mc-blch').textContent=state.bleaching_pct?.toFixed(1)+'%';
+  const bd=state.bleaching_pct-65;
+  document.getElementById('mc-blch-d').innerHTML=`<span class="${bd<0?'up':'dn'}">${bd>0?'+':''}${bd.toFixed(1)}%</span>`;
+  document.getElementById('mc-dhw').textContent=(state.dhw||0).toFixed(2);
+  document.getElementById('mc-dhw-d').innerHTML=(state.dhw||0)<2?'<span class="up">controlled</span>':'<span class="wn">rising</span>';
+  document.getElementById('mc-rwd').textContent=summary.best_reward;
+  const bi=experiments.findIndex(e=>e.reward===summary.best_reward);
+  document.getElementById('mc-rwd-d').innerHTML=`<span class="up">cycle ${bi+1}</span>`;
+
+  // Charts (last 80)
+  const recent=experiments.slice(-80);
+  const labels=recent.map(e=>'C'+e.cycle);
+  hChart.data.labels=labels;
+  hChart.data.datasets[0].data=recent.map(e=>e.health_score||0);
+  hChart.data.datasets[1].data=recent.map(()=>38.6);
+  hChart.update();
+  rChart.data.labels=labels;
+  rChart.data.datasets[0].data=recent.map(e=>e.reward);
+  rChart.update();
+
+  // Reef map
+  updateReef(state);
+  updateEnvGrid(state);
+  updateScoreboard(experiments);
+}
+
+async function fetchData(){
+  try{
+    const r=await fetch('/experiments');
+    const d=await r.json();
+    updateDashboard(d);
+  }catch(e){}
+}
+
+async function fetchProg(){
+  try{
+    const r=await fetch('/program');
+    const d=await r.json();
+    const html=d.content.replace(/^# (.+)$/mg,'<span class="pmd-h1"># $1</span>').replace(/^## (.+)$/mg,'<span class="pmd-h2">## $1</span>');
+    document.getElementById('prog').innerHTML=html;
+  }catch(e){}
+}
+
+// ════════════════════════════════════════════════
+//  RUNNER CONTROLS
+// ════════════════════════════════════════════════
+let _poll=null;
+
+function setRunUI(running){
+  document.getElementById('btn-inf').style.display=running?'none':'';
+  document.getElementById('btn-n').style.display=running?'none':'';
+  document.getElementById('btn-one').style.display=running?'none':'';
+  document.getElementById('btn-stop').style.display=running?'':'none';
+  document.getElementById('cycle-in').disabled=running;
+  document.getElementById('sdot').className='sdot '+(running?'run':'live');
+}
+
+async function startForever(){
+  await fetch('/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycles:null,delay:1.5})});
+  setRunUI(true); document.getElementById('stext').textContent='Running ∞';
+  document.getElementById('pbadge').style.display=''; startPoll();
+}
+async function startN(){
+  const n=parseInt(document.getElementById('cycle-in').value);
+  if(!n||n<1){alert('Enter a number of cycles.');return;}
+  await fetch('/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cycles:n,delay:1.5})});
+  setRunUI(true); document.getElementById('stext').textContent=`Running ${n}`;
+  document.getElementById('pbadge').style.display=''; startPoll();
+}
+async function stopRunner(){
+  await fetch('/stop',{method:'POST'});
+  setRunUI(false); document.getElementById('stext').textContent='Stopped';
+  document.getElementById('pbadge').style.display='none'; stopPoll();
+  fetchData();
+}
+async function runOne(){
+  if(document.getElementById('sdot').className.includes('run')) return;
+  document.getElementById('btn-one').disabled=true;
+  document.getElementById('sdot').className='sdot run';
+  document.getElementById('stext').textContent='Running...';
+  try{ await fetch('/run',{method:'POST'}); await fetchData(); await fetchProg(); }catch(e){}
+  document.getElementById('btn-one').disabled=false;
+  document.getElementById('sdot').className='sdot live';
+  document.getElementById('stext').textContent='Idle';
+}
+
+function startPoll(){
+  if(_poll) return;
+  _poll=setInterval(async()=>{
+    const rs=await fetch('/runner-status').then(r=>r.json()).catch(()=>null);
+    if(!rs) return;
+    const t=rs.target_cycles;
+    document.getElementById('pbadge').textContent=t?`${rs.completed}/${t}`:`${rs.completed} cycles`;
+    await fetchData();
+    if(!rs.running){
+      setRunUI(false);
+      document.getElementById('stext').textContent=rs.status==='done'?'Done ✓':rs.status==='error'?'Error ✗':'Stopped';
+      document.getElementById('pbadge').style.display='none';
+      stopPoll(); fetchProg();
+    }
+  },2000);
+}
+function stopPoll(){ if(_poll){clearInterval(_poll);_poll=null;} }
+
+async function resetExp(){
+  if(!confirm('Reset all experiment data?\n\nThis will:\n• Stop running experiment\n• Delete experiments.json\n• Reset program.md to baseline\n\nCannot be undone.')) return;
+  stopPoll(); setRunUI(false);
+  document.getElementById('btn-stop').style.display='none';
+  await fetch('/reset',{method:'POST'});
+  document.getElementById('stext').textContent='Idle';
+  document.getElementById('pbadge').style.display='none';
+  document.getElementById('sb-body').innerHTML='';
+  document.getElementById('sb-count').textContent='0 cycles';
+  document.getElementById('h-cyc').textContent='—';
+  document.getElementById('h-hlt').textContent='—';
+  document.getElementById('h-rwd').textContent='—';
+  document.getElementById('h-kpt').textContent='—';
+  hChart.data.labels=[];hChart.data.datasets[0].data=[];hChart.data.datasets[1].data=[];hChart.update();
+  rChart.data.labels=[];rChart.data.datasets[0].data=[];rChart.update();
+  const def={bleaching_pct:65,dhw:0,ph:7.9,omega_arag:2.6,temperature_c:29.5,water_quality:.45,species_count:18,coral_cover_pct:22,adaptation_score:.15};
+  updateReef(def); updateEnvGrid(def);
+  applyTheme(38);
+  fetchProg();
+}
+
+// ════════════════════════════════════════════════
+//  BOOT
+// ════════════════════════════════════════════════
+buildSliders();
+updateModalPreview();
+// Passive poll when idle
+setInterval(()=>{ if(!_poll) fetchData(); },8000);
+setInterval(()=>{ if(!_poll) fetchProg(); },30000);
+</script>
+</body>
+</html>
